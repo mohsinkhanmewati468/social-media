@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3003;
 mongoose
   .connect(process.env.MONGODB_URL)
   .then(() => logger.info("Connected to db"))
-  .catch((err) => logger.error("Mongodb connection error", e));
+  .catch((err) => logger.error("Mongodb connection error", err));
 
 app.use(cors());
 app.use(helmet());

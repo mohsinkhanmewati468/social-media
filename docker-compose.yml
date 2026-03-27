@@ -21,9 +21,11 @@ services:
     depends_on:
       - redis
       - rabbitmq
+      - mongo
     environment:
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - MONGODB_URL=mongodb://mongo:27017/social-media
 
   post-service:
     build: ./post-service
@@ -32,9 +34,11 @@ services:
     depends_on:
       - redis
       - rabbitmq
+      - mongo
     environment:
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - MONGODB_URL=mongodb://mongo:27017/social-media
 
   media-service:
     build: ./media-service
@@ -43,9 +47,11 @@ services:
     depends_on:
       - redis
       - rabbitmq
+      - mongo
     environment:
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - MONGODB_URL=mongodb://mongo:27017/social-media
 
   search-service:
     build: ./search-service
@@ -54,9 +60,11 @@ services:
     depends_on:
       - redis
       - rabbitmq
+      - mongo
     environment:
       - REDIS_URL=redis://redis:6379
       - RABBITMQ_URL=amqp://rabbitmq:5672
+      - MONGODB_URL=mongodb://mongo:27017/social-media
 
   redis:
     image: redis:alpine
@@ -66,11 +74,20 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     ports:
-      - "5672:5672" # AMQP
-      - "15672:15672" # UI Dashboard
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
-  healthcheck:
-    test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-    interval: 30s
-    timeout: 10s
-    retries: 5
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

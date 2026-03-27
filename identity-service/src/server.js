@@ -15,7 +15,7 @@ const app = express();
 mongoose
   .connect(process.env.MONGODB_URL)
   .then(() => logger.info("Connected to db"))
-  .catch((err) => logger.error("Mongodb connection error", e));
+  .catch((err) => logger.error("Mongodb connection error", err));
 
 const redisClient = new Redis(process.env.REDIS_URL);
 const PORT = process.env.PORT;

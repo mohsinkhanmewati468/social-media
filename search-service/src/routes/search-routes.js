@@ -1,8 +1,6 @@
 const { Router } = require("express");
 const { searchPostController } = require("../controllers/search-controller");
-const {
-  authenticateRequest,
-} = require("../../../post-service/src/middleware/authMiddleware");
+const { authenticateRequest } = require("../middleware/authMiddleware");
 
 const router = Router();
 router.use(authenticateRequest);
