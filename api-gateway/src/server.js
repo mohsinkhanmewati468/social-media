@@ -9,11 +9,14 @@ const logger = require("./utils/logger");
 const proxy = require("express-http-proxy");
 const errorHandler = require("./middleware/errorHandler");
 const { validateToken } = require("./middleware/authMiddleware");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Redis client
 const redisClient = new Redis(process.env.REDIS_URL);
 
+// Middlewares
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
@@ -25,118 +28,131 @@ app.use((req, res, next) => {
   next();
 });
 
-// Proxy options
+// Helper delay (for minor retry buffer)
+const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+// Proxy options (COMMON)
 const proxyOptions = {
   proxyReqPathResolver: (req) => {
     return req.originalUrl.replace(/^\/v1\//, "/api/");
   },
-  proxyErrorHandler: (err, req, res, next) => {
+
+  // ✅ FIXED ERROR HANDLER
+  proxyErrorHandler: async (err, res, next) => {
     logger.error(`Proxy error: ${err.message}`);
-    res
-      .status(500)
-      .json({ success: false, message: `Proxy Error: ${err.message}` });
+
+    await delay(500); // small buffer (helps when service just started)
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: "Service temporarily unavailable",
+      });
+    }
   },
 };
 
-// Proxy route for identity service
+// ================= AUTH SERVICE =================
 app.use(
   "/v1/auth",
   proxy(process.env.IDENTITY_SERVICE_URL, {
     ...proxyOptions,
+
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       proxyReqOpts.headers["Content-Type"] = "application/json";
       return proxyReqOpts;
     },
-    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
-      logger.info(
-        `Response received from Identity service: ${proxyRes.statusCode}`,
-      );
+
+    userResDecorator: (proxyRes, proxyResData) => {
+      logger.info(`Response from Identity service: ${proxyRes.statusCode}`);
       return proxyResData.toString("utf8");
     },
   }),
 );
 
-// Proxy route for posts service
+// ================= POST SERVICE =================
 app.use(
   "/v1/posts",
   validateToken,
   proxy(process.env.POST_SERVICE_URL, {
     ...proxyOptions,
+
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       proxyReqOpts.headers["Content-Type"] = "application/json";
       proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
       return proxyReqOpts;
     },
-    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
-      logger.info(
-        `Response received from Identity service: ${proxyRes.statusCode}`,
-      );
+
+    userResDecorator: (proxyRes, proxyResData) => {
+      logger.info(`Response from Post service: ${proxyRes.statusCode}`);
       return proxyResData.toString("utf8");
     },
   }),
 );
 
-// Proxy route for media service
+// ================= MEDIA SERVICE =================
 app.use(
   "/v1/media",
   validateToken,
   proxy(process.env.MEDIA_SERVICE_URL, {
     ...proxyOptions,
+
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+
       const contentType = srcReq.headers["content-type"];
 
-      if (contentType && contentType.startsWith("multipart/form-data")) {
-        // multipart request → don't touch headers
-      } else {
+      if (!contentType || !contentType.startsWith("multipart/form-data")) {
         proxyReqOpts.headers["Content-Type"] = "application/json";
       }
+
       return proxyReqOpts;
     },
-    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
-      logger.info(
-        `Response received from media service: ${proxyRes.statusCode}`,
-      );
+
+    userResDecorator: (proxyRes, proxyResData) => {
+      logger.info(`Response from Media service: ${proxyRes.statusCode}`);
       return proxyResData;
     },
+
     parseReqBody: false,
   }),
 );
 
-// Proxy route for search service
+// ================= SEARCH SERVICE =================
 app.use(
   "/v1/search",
   validateToken,
   proxy(process.env.SEARCH_SERVICE_URL, {
     ...proxyOptions,
+
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       proxyReqOpts.headers["Content-Type"] = "application/json";
       proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
       return proxyReqOpts;
     },
-    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
-      logger.info(
-        `Response received from media service: ${proxyRes.statusCode}`,
-      );
+
+    userResDecorator: (proxyRes, proxyResData) => {
+      logger.info(`Response from Search service: ${proxyRes.statusCode}`);
       return proxyResData;
     },
-    parseReqBody: false,
   }),
 );
 
-// Rate limiter
+// ================= RATE LIMIT =================
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+
   handler: (req, res) => {
-    logger.warn(`Sensitive endpoint rate limit exceeded for IP: ${req.ip}`);
+    logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
     res.status(429).json({
       success: false,
       message: "Too many requests",
     });
   },
+
   store: new RedisStore({
     sendCommand: (...args) => redisClient.call(...args),
   }),
@@ -144,14 +160,14 @@ const apiLimiter = rateLimit({
 
 app.use(apiLimiter);
 
-// Error handling middleware (after all routes)
+// ================= ERROR HANDLER =================
 app.use(errorHandler);
 
-// Start server
+// ================= START SERVER =================
 app.listen(PORT, () => {
-  logger.info(`API Gateway is running on port ${PORT}`);
-  logger.info(`Identity service URL: ${process.env.IDENTITY_SERVICE_URL}`);
-  logger.info(`Post service URL: ${process.env.POST_SERVICE_URL}`);
-  logger.info(`Media service URL: ${process.env.MEDIA_SERVICE_URL}`);
-  logger.info(`Search service URL: ${process.env.SEARCH_SERVICE_URL}`);
+  logger.info(`API Gateway running on port ${PORT}`);
+  logger.info(`Identity: ${process.env.IDENTITY_SERVICE_URL}`);
+  logger.info(`Post: ${process.env.POST_SERVICE_URL}`);
+  logger.info(`Media: ${process.env.MEDIA_SERVICE_URL}`);
+  logger.info(`Search: ${process.env.SEARCH_SERVICE_URL}`);
 });

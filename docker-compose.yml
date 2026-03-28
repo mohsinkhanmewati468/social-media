@@ -4,75 +4,83 @@ services:
   api-gateway:
     build: ./api-gateway
     ports:
-      - "3000:3000"
-    env_file:
-      - ./api-gateway/.env
+      - "${API_GATEWAY_PORT}:3000"
+    mem_limit: 40m
     depends_on:
       - redis
       - rabbitmq
     environment:
-      - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - PORT=3000
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - IDENTITY_SERVICE_URL=${IDENTITY_SERVICE_URL}
+      - POST_SERVICE_URL=${POST_SERVICE_URL}
+      - MEDIA_SERVICE_URL=${MEDIA_SERVICE_URL}
+      - SEARCH_SERVICE_URL=${SEARCH_SERVICE_URL}
+      - JWT_SECRET=${JWT_SECRET}
 
   identity-service:
     build: ./identity-service
-    env_file:
-      - ./identity-service/.env
+    mem_limit: 60m
     depends_on:
       - redis
       - rabbitmq
-      - mongo
     environment:
-      - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
-      - MONGODB_URL=mongodb://mongo:27017/social-media
+      - PORT=3001
+      - MONGODB_URL=${MONGODB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - JWT_SECRET=${JWT_SECRET}
 
   post-service:
     build: ./post-service
-    env_file:
-      - ./post-service/.env
+    mem_limit: 60m
     depends_on:
       - redis
       - rabbitmq
-      - mongo
     environment:
-      - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
-      - MONGODB_URL=mongodb://mongo:27017/social-media
+      - PORT=3002
+      - MONGODB_URL=${MONGODB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
 
   media-service:
     build: ./media-service
-    env_file:
-      - ./media-service/.env
+    mem_limit: 60m
     depends_on:
       - redis
       - rabbitmq
-      - mongo
     environment:
-      - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
-      - MONGODB_URL=mongodb://mongo:27017/social-media
+      - PORT=3003
+      - MONGODB_URL=${MONGODB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
 
   search-service:
     build: ./search-service
-    env_file:
-      - ./search-service/.env
+    mem_limit: 60m
     depends_on:
       - redis
       - rabbitmq
-      - mongo
     environment:
-      - REDIS_URL=redis://redis:6379
-      - RABBITMQ_URL=amqp://rabbitmq:5672
-      - MONGODB_URL=mongodb://mongo:27017/social-media
+      - PORT=3004
+      - MONGODB_URL=${MONGODB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
 
   redis:
     image: redis:alpine
+    mem_limit: 80m
     ports:
       - "6379:6379"
 
   rabbitmq:
     image: rabbitmq:3-management
+    mem_limit: 200m
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -81,13 +89,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-
-  mongo:
-    image: mongo:7
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-volumes:
-  mongo_data:

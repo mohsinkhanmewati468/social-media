@@ -14,7 +14,7 @@ async function connectToRabbitMQ() {
     logger.info("Connected to rabbitmq");
     return channel;
   } catch (err) {
-    logger.error("Error connection to rabbitmq", e);
+    logger.error("Error connection to rabbitmq", err);
   }
 }
 async function consumeEvent(routingKey, callback) {
