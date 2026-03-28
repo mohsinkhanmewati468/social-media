@@ -73,7 +73,7 @@ app.use("/api/auth", routes);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`Identity service is listening on port ${PORT}`);
+  console.log(`Identity service is listening on PORT ${PORT}`);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
