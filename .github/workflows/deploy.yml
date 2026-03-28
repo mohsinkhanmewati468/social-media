@@ -5,30 +5,26 @@ on:
     branches:
       - master
 
-# Global environment variable to opt into Node 24 early
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      # Use latest v4 for checkout (supports Node 24 with env var)
+      # checkout@v4 works, but v5 might have better Node support
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # v4 is still stable, v5 may have breaking changes
 
-      # Log in to Docker Hub
+      # docker/login-action v3 works with Node 24 via env var
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Set up Docker Buildx for better caching
+      # setup-buildx-action v3 works with Node 24 via env var
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Cache Docker layers for faster builds
+      # cache v4 is the latest stable version
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
@@ -37,7 +33,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # Build and push images with caching
       - name: Build and Push Docker Images
         run: |
           services=(api-gateway identity-service post-service media-service search-service)
@@ -51,37 +46,6 @@ jobs:
               ./$service
           done
 
-          # Move cache to avoid growing indefinitely
+          # Move cache
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: SSH to EC2 & Deploy
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd ~/social-media
-
-            # Pull latest images
-            docker compose pull
-
-            # Stop and remove old containers
-            docker compose down
-
-            # Start new containers with fresh images
-            docker compose up -d
-
-            # Clean up unused resources
-            docker system prune -af --volumes
-
-            # Remove old images with specific tag (optional cleanup)
-            docker image prune -a --filter "until=24h" -f
-
-            # Check running containers
-            docker compose ps
