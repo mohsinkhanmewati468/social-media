@@ -3,7 +3,7 @@ name: CI/CD - Social Media Microservices
 on:
   push:
     branches:
-      - main # trigger only on main branch
+      - master # trigger only on master branch
 
 jobs:
   deploy:
