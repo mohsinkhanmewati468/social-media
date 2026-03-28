@@ -1,23 +1,22 @@
 name: CI/CD - Social Media Microservices
-
 on:
   push:
     branches:
       - master
 
+# Global environment variable to opt into Node 24 early
 env:
-  # Opt into Node.js 24 to resolve deprecation warnings
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # Updated to v4 (Supports newer Node runtimes)
+      # Use latest v4 or v5 if available to support Node 24
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Updated to v3 (Latest stable for Docker Login)
+      # Ensure you are on v3 for the login action
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -28,9 +27,7 @@ jobs:
         run: |
           services=(api-gateway identity-service post-service media-service search-service)
           for service in "${services[@]}"; do
-            echo "Building $service..."
             docker build -t ${{ secrets.DOCKER_USERNAME }}/$service:latest ./$service
-            echo "Pushing $service..."
             docker push ${{ secrets.DOCKER_USERNAME }}/$service:latest
           done
 
